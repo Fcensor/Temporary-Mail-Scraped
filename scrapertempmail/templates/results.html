@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boîte Mail Temporaire</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .email-info {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .email-input {
+            flex-grow: 1;
+            padding: 10px;
+            font-size: 18px;
+        }
+        .email-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 15px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .mails-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mails {
+            margin-top: 20px;
+        }
+        .mail-item {
+            background: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mail-item a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .mail-item a:hover {
+            text-decoration: underline;
+        }
+        #timer {
+            font-size: 20px;
+            color: #333;
+        }
+    </style>
+    <script>
+        const csrfToken = "{{ csrf_token }}";
+        document.addEventListener("DOMContentLoaded", function () {
+            const copyButton = document.getElementById("copy-btn");
+            const generateButton = document.getElementById("generate-btn");
+            const refreshButton = document.getElementById("refresh-btn");
+            const timerElement = document.getElementById("timer");
+            const refreshTimerElement = document.getElementById("refresh-timer");
+
+            // Fonction pour lire les cookies
+            const getCookie = (name) => {
+                const cookies = document.cookie.split("; ");
+                for (const cookie of cookies) {
+                    const [key, value] = cookie.split("=");
+                    if (key === name) return decodeURIComponent(value);
+                }
+                return null;
+            };
+
+            // Fonction pour définir un cookie
+            const setCookie = (name, value, days) => {
+                const expires = new Date();
+                expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+                document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`;
+            };
+
+            // Initialisation du timer
+            const countdownDuration = 600 * 1000; // 10 minutes en millisecondes
+            let startTime = getCookie("start_time");
+
+            if (!startTime) {
+                // Si le cookie n'existe pas, le créer avec la valeur actuelle
+                startTime = new Date().getTime();
+                setCookie("start_time", startTime, 1); // Durée d'un jour
+            } else {
+                startTime = parseInt(startTime, 10); // Convertir en entier
+            }
+
+            const updateTimer = () => {
+                const elapsed = new Date().getTime() - startTime;
+                const remaining = countdownDuration - elapsed;
+
+                if (remaining <= 0) {
+                    timerElement.textContent = "Expiré !";
+                    return;
+                }
+
+                const minutes = Math.floor(remaining / 1000 / 60);
+                const seconds = Math.floor((remaining / 1000) % 60);
+                timerElement.textContent = `${minutes}m ${seconds}s`;
+            };
+
+            if (timerElement) {
+                setInterval(updateTimer, 1000);
+                updateTimer();
+            }
+
+            // Gestion du bouton Rafraîchir avec compteur
+            let refreshCountdown = 30; // Compteur de 30 secondes
+            const updateRefreshTimer = () => {
+                if (refreshCountdown <= 0) {
+                    refreshCountdown = 30;
+                    window.location.reload(); // Rafraîchir la page
+                } else {
+                    refreshTimerElement.textContent = `Rafraîchir (${refreshCountdown}s)`;
+                    refreshCountdown -= 1;
+                }
+            };
+
+            if (refreshButton && refreshTimerElement) {
+                setInterval(updateRefreshTimer, 1000); // Décrémenter toutes les secondes
+                refreshButton.addEventListener("click", () => {
+                    window.location.reload(); // Rafraîchir immédiatement sur clic
+                });
+            }
+
+            // Copier l'adresse email
+            if (copyButton) {
+                copyButton.addEventListener("click", () => {
+                    const emailInput = document.getElementById("email-input");
+                    if (emailInput) {
+                        navigator.clipboard.writeText(emailInput.value).then(() => {
+                            alert("Adresse email copiée !");
+                        });
+                    }
+                });
+            }
+
+            // Réinitialiser les cookies et recharger la page
+            if (generateButton) {
+                generateButton.addEventListener("click", () => {
+                    fetch("/reset-email/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": "{{ csrf_token }}",
+                        },
+                    })
+                        .then(() => {
+                            // Supprimer le cookie localement
+                            document.cookie = "start_time=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
+                            window.location.reload(); // Recharge la page
+                        })
+                        .catch((error) => {
+                            console.error("Erreur lors de la réinitialisation :", error);
+                            alert("Une erreur est survenue. Veuillez réessayer.");
+                        });
+                });
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Boîte Mail Temporaire</h1>
+        <div class="email-info">
+            <input type="text" id="email-input" class="email-input" value="{{ adresse_email }}" readonly>
+            <div class="email-buttons">
+                <button id="copy-btn" class="btn">Copier</button>
+                <button id="generate-btn" class="btn">Nouvelle Adresse</button>
+            </div>
+        </div>
+        <p>Temps restant : <span id="timer">10m 0s</span></p>
+        <div class="mails">
+            <div class="mails-header">
+                <h2>Courriers Reçus</h2>
+                <button id="refresh-btn" class="btn" title="Cliquez pour rafraîchir la page">
+                    <span id="refresh-timer">Rafraîchir (30s)</span>
+                </button>
+            </div>
+            {% for mail in courriers_recus %}
+            <div class="mail-item">
+                <div>
+                    <strong>Expéditeur :</strong> {{ mail.expediteur }}<br>
+                    <strong>Sujet :</strong> <a href="/email-content/?link={{ mail.lien }}">{{ mail.sujet }}</a><br>
+                    <strong>Date :</strong> {{ mail.date }}
+                </div>
+            </div>
+            {% endfor %}
+            {% if courriers_recus|length == 0 %}
+            <p>Aucun courrier reçu pour le moment.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
